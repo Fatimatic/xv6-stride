@@ -122,6 +122,9 @@ allocproc(void)
   return 0;
 
 found:
+  p->tickets = 100;
+  p->stride = STRIDE1 / p->tickets;
+  p->pass = 0;
   p->pid = allocpid();
   p->state = USED;
 
@@ -274,7 +277,9 @@ kfork(void)
     return -1;
   }
   np->sz = p->sz;
-
+  np->tickets = p->tickets;
+  np->stride = p->stride;
+  np->pass = 0;
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
