@@ -101,4 +101,9 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+    // stride scheduling
+  int tickets;                 // number of tickets
+  int stride;                  // STRIDE1 / tickets
+  uint64 pass;                 // pass value (smallest runs next)
 };

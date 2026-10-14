@@ -110,3 +110,18 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+uint64
+sys_settickets(void)
+{
+  int n;
+  argint(0, &n);
+  if(n < 1)
+    return -1;               // failure case: invalid ticket count
+
+  struct proc *p = myproc();
+  acquire(&p->lock);
+  p->tickets = n;
+  p->stride = STRIDE1 / n;
+  release(&p->lock);
+  return 0;
+}
