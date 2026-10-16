@@ -432,55 +432,43 @@ kwait(uint64 addr)
 //    via swtch back to the scheduler.
 void
 scheduler(void)
+
 {
   struct proc *p;
+  struct proc *best;
   struct cpu *c = mycpu();
 
   c->proc = 0;
   for (;;) {
-    // The most recent process to run may have had interrupts
-    // turned off; enable them to avoid a deadlock if all
-    // processes are waiting. Then turn them back off
-    // to avoid a possible race between an interrupt
-    // and wfi.
     intr_on();
     intr_off();
 
-    int found = 0;
+    best = 0;                          // no candidate yet
     for (p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
-      if (p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Don't re-enable interrupts on release.
-        mycpu()->intena = 0;
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
+      if (p->state == RUNNABLE && (best == 0 || p->pass < best->pass)) {
+        if (best != 0)
+          release(&best->lock);        // old leader loses, unlock it
+        best = p;                      // p is the new leader, stay locked
+      } else {
+        release(&p->lock);             // not a candidate, unlock it
       }
-      release(&p->lock);
     }
-    if (found == 0) {
-      // nothing to run; stop running on this core until an interrupt.
-      asm volatile("wfi");
+
+    if (best != 0) {
+      best->state = RUNNING;
+      best->pass += best->stride;      // charge it for this turn
+      c->proc = best;
+      swtch(&c->context, &best->context);
+      mycpu()->intena = 0;
+      c->proc = 0;
+      release(&best->lock);
+    } else {
+      asm volatile("wfi");             // nothing to run, wait
     }
   }
 }
 
-// Switch to scheduler.  Must hold only p->lock
-// and have changed proc->state. Saves and restores
-// intena because intena is a property of this
-// kernel thread, not this CPU. It should
-// be proc->intena and proc->noff, but that would
-// break in the few places where a lock is held but
-// there's no process.
 void
 sched(void)
 {
